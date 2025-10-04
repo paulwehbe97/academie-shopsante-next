@@ -1,0 +1,194 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ------------------------------------------------------------------
+ * Modèles NextAuth + champs métiers requis par l'app
+ * ------------------------------------------------------------------
+ */
+
+model User {
+  id            String   @id @default(cuid())
+  name          String?
+  email         String?  @unique
+  emailVerified DateTime?
+  image         String?
+
+  // Ajout requis pour affichage et tri
+  firstName     String?
+  lastName      String?
+
+  // Métier
+  role           String    @default("Employé") // "Employé" | "Gérant" | "Admin"
+  storeCode      String?
+  storeName      String?
+  passwordHash   String?
+  lastReminderAt DateTime?
+
+  // accès révoqué
+  revoked       Boolean   @default(false)
+
+  // Suivi dates
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations NextAuth
+  accounts           Account[]
+  sessions           Session[]
+  certificates       Certificate[]
+  policyAcceptances  PolicyAcceptance[]
+  progresses         Progress[]
+}
+
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Certificate {
+  id           String    @id @default(cuid())
+  userId       String
+  levelKey     String // ex: "Niveau 1"
+  chapterId    String // "1".."8"
+  chapterTitle String
+  filePath     String // chemin relatif dans /public (pour téléchargement)
+  issuedAt     DateTime  @default(now())
+  sentAt       DateTime?
+
+  // Relation vers User
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Idempotence et performances
+  @@unique([userId, levelKey, chapterId])
+  @@index([userId, issuedAt])
+}
+
+model Progress {
+  id            String    @id @default(cuid())
+  userId        String
+  moduleCode    String // ex.: "1_vitamines" (ton moduleCode)
+  levelKey      String // ex.: "Niveau 1"
+  chapterId     String // "1".."8"
+  watched       Boolean   @default(false)
+  attempts      Int       @default(0)
+  pct           Int       @default(0) // 0..100
+  lastAttemptAt DateTime?
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, moduleCode])
+  @@index([userId])
+}
+
+model RevokedInvite {
+  id    String   @id // jti
+  added DateTime @default(now())
+
+  @@index([added])
+}
+
+model InviteLog {
+  id         String    @id @default(cuid())
+  email      String
+  jti        String    @unique
+  role       String    @default("Employé")
+  storeCode  String
+  storeName  String?
+  invitedBy  String?
+  invitedAt  DateTime  @default(now())
+  revokedAt  DateTime?
+  acceptedAt DateTime?
+
+  // Ajout pour Admin
+  firstName  String?
+  lastName   String?
+  hireDate   DateTime?
+
+  @@index([storeCode, invitedAt])
+  @@index([email, invitedAt])
+}
+
+model PolicyDoc {
+  id       String @id @default(cuid())
+  title    String
+  category String @default("Politique")
+  fileUrl  String // ex: /api/files/policies/<fileKey>
+  fileKey  String @unique // ex: policies/2025-09-23-xxxx.pdf
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  acceptances PolicyAcceptance[]
+}
+
+model PolicyAcceptance {
+  id         String   @id @default(cuid())
+  policyId   String
+  userId     String
+  fullName   String
+  acceptedAt DateTime @default(now())
+  ip         String? // optionnel
+  userAgent  String? // optionnel
+
+  policy PolicyDoc @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([policyId, userId])
+}
+
+model Store {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+}
+
+model Partner {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  logoUrl     String
+  link        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

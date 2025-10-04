@@ -1,0 +1,67 @@
+/* styles/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Police Aller (si tu utilises public/fonts) */
+@font-face {
+  font-family: 'Aller';
+  src: url('/fonts/Aller-Regular.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Aller';
+  src: url('/fonts/Aller-Italic.woff2') format('woff2');
+  font-weight: 400; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: 'Aller';
+  src: url('/fonts/Aller-Bold.woff2') format('woff2');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Aller';
+  src: url('/fonts/Aller-BoldItalic.woff2') format('woff2');
+  font-weight: 700; font-style: italic; font-display: swap;
+}
+
+body {
+  font-family: 'Aller', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+/* ===========================
+   Police Aller (webfont local)
+   =========================== */
+@font-face {
+  font-family: 'Aller';
+  src: url('/fonts/Aller-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Aller';
+  src: url('/fonts/Aller-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Aller';
+  src: url('/fonts/Aller-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Aller';
+  src: url('/fonts/Aller-BoldItalic.woff2') format('woff2');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Appliquer Aller partout */
+body {
+  font-family: 'Aller', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
