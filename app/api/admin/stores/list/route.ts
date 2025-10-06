@@ -2,9 +2,10 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from "next/server";
-import prisma from "@/lib/db"; // ✅ utilise ton db.ts existant
+import prisma from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { STORES } from "@/data/stores"; // ✅ ton fichier local déjà présent
 
 export async function GET() {
   try {
@@ -15,11 +16,8 @@ export async function GET() {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    const stores = await prisma.store.findMany({
-      orderBy: { name: "asc" },
-    });
-
-    return NextResponse.json({ ok: true, stores });
+    // ✅ on renvoie simplement la liste statique des boutiques
+    return NextResponse.json({ ok: true, stores: STORES });
   } catch (e: any) {
     console.error("Error fetching stores:", e);
     return NextResponse.json(
