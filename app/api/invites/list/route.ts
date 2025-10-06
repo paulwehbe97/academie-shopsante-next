@@ -4,7 +4,8 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import prisma from "@/lib/db";
+import { PrismaClient } from "@prisma/client";
+const prisma = new PrismaClient();
 
 function statusOf(row: any) {
   if (row.acceptedAt) return "accepted";
@@ -22,20 +23,14 @@ export async function GET(req: Request) {
   const me = session?.user as any;
 
   if (!me?.email) {
-    return NextResponse.json(
-      { ok: false, error: "unauthorized" },
-      { status: 401 }
-    );
+    return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
 
   const role: "Employé" | "Gérant" | "Admin" = (me.role || "Employé") as any;
   const myStore: string | null = me.storeCode || null;
 
   if (role === "Employé") {
-    return NextResponse.json(
-      { ok: false, error: "forbidden" },
-      { status: 403 }
-    );
+    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
   const where =
@@ -62,7 +57,7 @@ export async function GET(req: Request) {
     invitedAt: r.invitedAt.toISOString(),
     acceptedAt: r.acceptedAt ? r.acceptedAt.toISOString() : null,
     revokedAt: r.revokedAt ? r.revokedAt.toISOString() : null,
-    status: statusOf(r) as "pending" | "revoked" | "accepted",
+    status: statusOf(r),
     expired: isExpired(r.invitedAt),
   }));
 
