@@ -73,64 +73,79 @@ export const authOptions: NextAuthOptions = {
     }),
 
     // ✨ Credentials : connexion locale par mot de passe
-    CredentialsProvider({
-      name: "Credentials",
-      credentials: {
-        email: { label: "Email", type: "text" },
-        password: { label: "Mot de passe", type: "password" },
+CredentialsProvider({
+  name: "Credentials",
+  credentials: {
+    email: { label: "Email", type: "text" },
+    password: { label: "Mot de passe", type: "password" },
+  },
+  async authorize(credentials) {
+    const c = credentials as any;
+
+    // ⚙️ Récupération tolérante des champs
+    const email =
+      (c?.email ?? c?.username ?? c?.user ?? c?.login ?? "")
+        .toString()
+        .trim()
+        .toLowerCase();
+
+    const password =
+      (c?.password ??
+        c?.pwd ??
+        c?.pass ??
+        c?.mdp ??
+        c?.motdepasse ??
+        "")
+        .toString();
+
+    // 🧪 debug minimal pour confirmer les clés reçues (pas de valeurs)
+    try {
+      // visible dans logs Vercel → Functions → /api/auth/callback/credentials
+      console.debug("[auth] credentials keys:", Object.keys(c || {}));
+    } catch {}
+
+    if (!email || !password) {
+      throw new Error("Identifiants invalides ou compte sans mot de passe.");
+    }
+
+    // 1) Charger l’utilisateur
+    const user = await prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        storeCode: true,
+        storeName: true,
+        revoked: true,
+        passwordHash: true,
       },
-      async authorize(credentials) {
-        const email = (credentials?.email || "").trim().toLowerCase();
-        const password = ((credentials as any)?.password ?? (credentials as any)?.pwd ?? "").toString();
+    });
 
-        if (!email || !password) {
-          throw new Error("Identifiants invalides ou compte sans mot de passe.");
-        }
+    if (!user || user.revoked || !user.passwordHash) {
+      throw new Error("Identifiants invalides ou compte sans mot de passe.");
+    }
 
-        // 1) Charger l’utilisateur avec le hash
-        const user = await prisma.user.findUnique({
-          where: { email },
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            role: true,
-            storeCode: true,
-            storeName: true,
-            revoked: true,
-            passwordHash: true,
-          },
-        });
+    // 2) Comparaison bcrypt
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) {
+      throw new Error("Identifiants invalides ou compte sans mot de passe.");
+    }
 
-        // 2) Vérifs de base
-        if (!user) {
-          throw new Error("Identifiants invalides ou compte sans mot de passe.");
-        }
-        if (user.revoked) {
-          throw new Error("Accès révoqué.");
-        }
-        if (!user.passwordHash) {
-          throw new Error("Identifiants invalides ou compte sans mot de passe.");
-        }
+    // 3) Retourner l’objet user
+    return {
+      id: user.id,
+      email: user.email!,
+      name: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email!,
+      role: user.role,
+      storeCode: user.storeCode,
+      storeName: user.storeName,
+    } as any;
+  },
+})
 
-        // 3) Comparaison bcrypt **sur passwordHash**
-        const ok = await bcrypt.compare(password, user.passwordHash);
-        if (!ok) {
-          throw new Error("Identifiants invalides ou compte sans mot de passe.");
-        }
-
-        // 4) Retourner l’objet user
-        return {
-          id: user.id,
-          email: user.email!,
-          name: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email!,
-          role: user.role as Role,
-          storeCode: user.storeCode,
-          storeName: user.storeName,
-        } as any;
-      },
-    }),
 
     // ❌ EmailProvider (magic link) désactivé pour respecter l’UX choisie (invite-only + reset password)
     /*
