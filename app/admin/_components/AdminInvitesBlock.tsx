@@ -54,6 +54,7 @@ export default function AdminInvitesBlock() {
   }
 
   useEffect(() => {
+    console.log("AdminInvitesBlock monté !");
     loadInvites();
     loadStores();
   }, []);
