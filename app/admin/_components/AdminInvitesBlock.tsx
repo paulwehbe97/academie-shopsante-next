@@ -59,6 +59,7 @@ export default function AdminInvitesBlock() {
   }, []);
 
   async function handleSend() {
+    console.log("handleSend triggered", form);
     if (!form.email || !form.firstName || !form.lastName || !form.storeCode) {
       toast.error("Tous les champs sont requis");
       return;
