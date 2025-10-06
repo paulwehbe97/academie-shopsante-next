@@ -85,6 +85,11 @@ export async function POST(req: Request) {
     console.log("✅ Email envoyé à:", to);
 
     console.log("🟢 Étape 4: enregistrement InviteLog...");
+
+    // Vérifie la connexion à la base (test simple, aide au debug sur Vercel)
+    await prisma.$queryRaw`SELECT NOW()`;
+    console.log("✅ Connexion Prisma OK.");
+
     if (jti) {
       await prisma.inviteLog.update({
         where: { jti },
@@ -99,7 +104,9 @@ export async function POST(req: Request) {
       });
       console.log("InviteLog mis à jour (renvoi).");
     } else {
-      const payload = JSON.parse(atob(token.split(".")[1]));
+      // Décodage du token compatible Node (corrige l'erreur 500 sur Vercel)
+      const payload = JSON.parse(Buffer.from(token.split(".")[1], "base64").toString("utf8"));
+
       await prisma.inviteLog.create({
         data: {
           jti: payload.jti,
