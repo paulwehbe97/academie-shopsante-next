@@ -64,29 +64,47 @@ export default function AdminInvitesBlock() {
       toast.error("Tous les champs sont requis");
       return;
     }
-    setSending(true);
-    const res = await fetch("/api/invites/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        to: form.email,
-        firstName: form.firstName,
-        lastName: form.lastName,
-        role: form.role,
-        storeCode: form.storeCode,
-        storeName: stores.find((s) => s.code === form.storeCode)?.name || "",
-        hireDate: form.hireDate || null,
-      }),
-    });
-    setSending(false);
 
-    if (res.ok) {
-      toast.success("Invitation envoyée !");
-      setForm({ firstName: "", lastName: "", email: "", role: "Employé", storeCode: "", hireDate: "" });
-      loadInvites();
-    } else {
-      toast.error("Erreur lors de l’envoi");
+    setSending(true);
+    try {
+      const res = await fetch("/api/invites/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: form.email,
+          firstName: form.firstName,
+          lastName: form.lastName,
+          role: form.role,
+          storeCode: form.storeCode,
+          storeName: stores.find((s) => s.code === form.storeCode)?.name || "",
+          hireDate: form.hireDate || null,
+        }),
+      });
+      console.log("Réponse brute:", res.status, res.statusText);
+
+      const text = await res.text();
+      console.log("Réponse texte brute:", text);
+
+      let json: any = null;
+      try {
+        json = JSON.parse(text);
+        console.log("Réponse JSON:", json);
+      } catch {
+        console.log("Réponse non JSON (probablement erreur serveur)");
+      }
+
+      if (res.ok) {
+        toast.success("Invitation envoyée !");
+        setForm({ firstName: "", lastName: "", email: "", role: "Employé", storeCode: "", hireDate: "" });
+        loadInvites();
+      } else {
+        toast.error("Erreur lors de l’envoi");
+      }
+    } catch (e) {
+      console.error("Erreur réseau ou fetch:", e);
+      toast.error("Erreur réseau");
     }
+    setSending(false);
   }
 
   async function handleResend(invite: Invite) {
@@ -147,10 +165,8 @@ export default function AdminInvitesBlock() {
 
   return (
     <div className="bg-white rounded-2xl shadow p-6 space-y-6">
-      {/* Nouveau titre */}
       <h2 className="text-lg font-bold mb-4">Inviter un nouvel utilisateur</h2>
 
-      {/* Formulaire d’envoi */}
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
         <input
           placeholder="Prénom"
@@ -199,7 +215,6 @@ export default function AdminInvitesBlock() {
         />
       </div>
 
-      {/* Bouton visuel modifié */}
       <button
         onClick={handleSend}
         disabled={sending}
@@ -210,7 +225,6 @@ export default function AdminInvitesBlock() {
         {sending ? "Envoi..." : "Envoyer l’invitation"}
       </button>
 
-      {/* Filtre boutique modifié */}
       <div>
         <label className="block mb-2 text-sm font-medium">
           Invitations en attentes — Filtre par boutique
@@ -229,7 +243,6 @@ export default function AdminInvitesBlock() {
         </select>
       </div>
 
-      {/* Tableau */}
       {filteredInvites.length === 0 ? (
         <p className="text-sm text-gray-500">Aucune invitation.</p>
       ) : (
