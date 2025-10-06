@@ -52,15 +52,16 @@ export async function POST(req: Request) {
     console.log("URL d'inscription:", signupUrl);
 
     console.log("🟢 Étape 2: configuration du transport SMTP...");
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: false, // STARTTLS (obligatoire pour Gmail)
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT || 465),
+  secure: true, // ✅ SSL direct (obligatoire sur Vercel)
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
+
     console.log("✅ Transporter SMTP prêt.");
 
     const html = `
