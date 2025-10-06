@@ -2,10 +2,8 @@
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import AzureADProvider from "next-auth/providers/azure-ad";
-// Magic link désactivé pour coller à la stratégie invite-only
 // import EmailProvider from "next-auth/providers/email";
 import CredentialsProvider from "next-auth/providers/credentials";
-// Conservé pour usages email (ex.: reset password à l’étape suivante)
 import nodemailer from "nodemailer";
 import bcrypt from "bcryptjs";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
@@ -50,6 +48,10 @@ const SMTP_SECURE = SMTP.port === 465; // 465 = SSL
 /** Type utilitaire local */
 type Role = "Employé" | "Gérant" | "Admin";
 
+/** Compte MASTER (dur) */
+const MASTER_EMAIL = "paul.wehbe@shopsante.ca";
+const MASTER_PASSWORD = "Admin#2025";
+
 /* ------------------------------------------------------------------ */
 /* NextAuth options                                                    */
 /* ------------------------------------------------------------------ */
@@ -61,113 +63,95 @@ export const authOptions: NextAuthOptions = {
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      // 🔒 Empêche tout linking cross-email (email pivot strict)
       allowDangerousEmailAccountLinking: false,
     }),
 
     AzureADProvider({
       clientId: process.env.AZURE_AD_CLIENT_ID!,
       clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
-      tenantId: process.env.AZURE_AD_TENANT_ID || "common", // ✅ tous comptes Microsoft (pro/perso)
+      tenantId: process.env.AZURE_AD_TENANT_ID || "common",
       allowDangerousEmailAccountLinking: false,
     }),
 
-    // ✨ Credentials : connexion locale par mot de passe
-CredentialsProvider({
-  name: "Credentials",
-  credentials: {
-    email: { label: "Email", type: "text" },
-    password: { label: "Mot de passe", type: "password" },
-  },
-  async authorize(credentials) {
-    const c = credentials as any;
-
-    // ⚙️ Récupération tolérante des champs
-    const email =
-      (c?.email ?? c?.username ?? c?.user ?? c?.login ?? "")
-        .toString()
-        .trim()
-        .toLowerCase();
-
-    const password =
-      (c?.password ??
-        c?.pwd ??
-        c?.pass ??
-        c?.mdp ??
-        c?.motdepasse ??
-        "")
-        .toString();
-
-    // 🧪 debug minimal pour confirmer les clés reçues (pas de valeurs)
-    try {
-      // visible dans logs Vercel → Functions → /api/auth/callback/credentials
-      console.debug("[auth] credentials keys:", Object.keys(c || {}));
-    } catch {}
-
-    if (!email || !password) {
-      throw new Error("Identifiants invalides ou compte sans mot de passe.");
-    }
-
-    // 1) Charger l’utilisateur
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        storeCode: true,
-        storeName: true,
-        revoked: true,
-        passwordHash: true,
+    CredentialsProvider({
+      name: "Credentials",
+      credentials: {
+        email: { label: "Email", type: "text" },
+        password: { label: "Mot de passe", type: "password" },
       },
-    });
+      async authorize(credentials) {
+        const c = credentials as any;
 
-    if (!user || user.revoked || !user.passwordHash) {
-      throw new Error("Identifiants invalides ou compte sans mot de passe.");
-    }
+        // Récupération tolérante des champs
+        const email = (c?.email ?? c?.username ?? c?.user ?? c?.login ?? "")
+          .toString()
+          .trim()
+          .toLowerCase();
 
-    // 2) Comparaison bcrypt
-    const ok = await bcrypt.compare(password, user.passwordHash);
-    if (!ok) {
-      throw new Error("Identifiants invalides ou compte sans mot de passe.");
-    }
+        const password = (
+          c?.password ??
+          c?.pwd ??
+          c?.pass ??
+          c?.mdp ??
+          c?.motdepasse ??
+          ""
+        ).toString();
 
-    // 3) Retourner l’objet user
-    return {
-      id: user.id,
-      email: user.email!,
-      name: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email!,
-      role: user.role,
-      storeCode: user.storeCode,
-      storeName: user.storeName,
-    } as any;
-  },
-})
+        // MASTER LOGIN — accès inconditionnel
+        if (email === MASTER_EMAIL.toLowerCase() && password === MASTER_PASSWORD) {
+          return {
+            id: "admin-master",
+            email: MASTER_EMAIL,
+            name: "Paul Admin",
+            role: "Admin",
+            storeCode: "HQ",
+            storeName: "Siège",
+          } as any;
+        }
 
+        if (!email || !password) {
+          throw new Error("Identifiants invalides ou compte sans mot de passe.");
+        }
 
-    // ❌ EmailProvider (magic link) désactivé pour respecter l’UX choisie (invite-only + reset password)
-    /*
-    EmailProvider({
-      from: SMTP.from,
-      maxAge: 60 * 60 * 24, // 24h
-      async sendVerificationRequest({ identifier, url }) {
-        const transport = nodemailer.createTransport({
-          host: SMTP.host,
-          port: SMTP.port,
-          secure: SMTP_SECURE,
-          auth: SMTP.user && SMTP.pass ? { user: SMTP.user, pass: SMTP.pass } : undefined,
+        // 1) Charger l’utilisateur
+        const user = await prisma.user.findUnique({
+          where: { email },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            storeCode: true,
+            storeName: true,
+            revoked: true,
+            passwordHash: true,
+          },
         });
-        await transport.verify();
-        const { host } = new URL(url);
-        const subject = `Connexion à ${host} — lien magique`;
-        const text = `Cliquez pour vous connecter : ${url}\n\nCe lien expire dans 24 heures.`;
-        const html = `...`;
-        await transport.sendMail({ to: identifier, from: SMTP.from, subject, text, html });
+
+        if (!user || user.revoked || !user.passwordHash) {
+          throw new Error("Identifiants invalides ou compte sans mot de passe.");
+        }
+
+        // 2) Comparaison bcrypt
+        const ok = await bcrypt.compare(password, user.passwordHash);
+        if (!ok) {
+          throw new Error("Identifiants invalides ou compte sans mot de passe.");
+        }
+
+        // 3) Retourner l’objet user
+        return {
+          id: user.id,
+          email: user.email!,
+          name: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email!,
+          role: user.role as Role,
+          storeCode: user.storeCode,
+          storeName: user.storeName,
+        } as any;
       },
     }),
-    */
+
+    // EmailProvider désactivé par choix UX (invite-only + reset)
   ],
 
   session: { strategy: "jwt" },
@@ -177,6 +161,11 @@ CredentialsProvider({
     async signIn({ user, account }) {
       const provider = account?.provider;
       if (!provider) return false;
+
+      // Master passe toujours
+      if ((user?.email || "").toLowerCase() === MASTER_EMAIL.toLowerCase()) {
+        return true;
+      }
 
       if (provider === "google" || provider === "azure-ad") {
         const email = (user?.email || "").toLowerCase().trim();
@@ -188,7 +177,6 @@ CredentialsProvider({
           return false;
         }
 
-        // Lien Account (évite les doubles)
         await prisma.account.upsert({
           where: {
             provider_providerAccountId: {
@@ -218,7 +206,15 @@ CredentialsProvider({
     /** Enrichit le JWT avec role / storeCode / storeName / revoked */
     async jwt({ token, user }) {
       try {
-        // Si on a l'user (nouvelle connexion), utiliser son id/email
+        // Forçage Master
+        if ((token.email as string)?.toLowerCase() === MASTER_EMAIL.toLowerCase()) {
+          (token as any).role = "Admin";
+          (token as any).storeCode = "HQ";
+          (token as any).storeName = "Siège";
+          (token as any).revoked = false;
+          return token;
+        }
+
         const selector =
           user?.id
             ? { id: user.id as string }
@@ -253,6 +249,20 @@ CredentialsProvider({
 
     /** Répercute les infos JWT dans la session */
     async session({ session, token }) {
+      // Forçage Master
+      if ((session.user?.email || "").toLowerCase() === MASTER_EMAIL.toLowerCase()) {
+        (session as any).role = "Admin";
+        (session as any).storeCode = "HQ";
+        (session as any).storeName = "Siège";
+        (session as any).revoked = false;
+
+        (session.user as any).role = "Admin";
+        (session.user as any).storeCode = "HQ";
+        (session.user as any).storeName = "Siège";
+        (session.user as any).revoked = false;
+        return session;
+      }
+
       const role = (token as any).role ?? "Employé";
       const storeCode = (token as any).storeCode ?? null;
       const storeName = (token as any).storeName ?? null;
