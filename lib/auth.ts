@@ -81,7 +81,7 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         const email = (credentials?.email || "").trim().toLowerCase();
-        const password = credentials?.password || "";
+        const password = ((credentials as any)?.password ?? (credentials as any)?.pwd ?? "").toString();
 
         if (!email || !password) {
           throw new Error("Identifiants invalides ou compte sans mot de passe.");
