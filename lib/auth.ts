@@ -1,3 +1,4 @@
+// lib/auth.ts
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import AzureADProvider from "next-auth/providers/azure-ad";
@@ -71,7 +72,7 @@ export const authOptions: NextAuthOptions = {
       allowDangerousEmailAccountLinking: false,
     }),
 
-    // ✨ Credentials : connexion locale par mot de passe (inchangée)
+    // ✨ Credentials : connexion locale par mot de passe
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -79,17 +80,55 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Mot de passe", type: "password" },
       },
       async authorize(credentials) {
-        const email = (credentials?.email || "").toLowerCase().trim();
-        const pwd = credentials?.password || "";
-        if (!email || !pwd) return null;
+        const email = (credentials?.email || "").trim().toLowerCase();
+        const password = credentials?.password || "";
 
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user?.passwordHash) return null;
+        if (!email || !password) {
+          throw new Error("Identifiants invalides ou compte sans mot de passe.");
+        }
 
-        const ok = await bcrypt.compare(pwd, user.passwordHash);
-        if (!ok) return null;
+        // 1) Charger l’utilisateur avec le hash
+        const user = await prisma.user.findUnique({
+          where: { email },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            storeCode: true,
+            storeName: true,
+            revoked: true,
+            passwordHash: true,
+          },
+        });
 
-        return { id: user.id, email: user.email || undefined, name: user.name || undefined } as any;
+        // 2) Vérifs de base
+        if (!user) {
+          throw new Error("Identifiants invalides ou compte sans mot de passe.");
+        }
+        if (user.revoked) {
+          throw new Error("Accès révoqué.");
+        }
+        if (!user.passwordHash) {
+          throw new Error("Identifiants invalides ou compte sans mot de passe.");
+        }
+
+        // 3) Comparaison bcrypt **sur passwordHash**
+        const ok = await bcrypt.compare(password, user.passwordHash);
+        if (!ok) {
+          throw new Error("Identifiants invalides ou compte sans mot de passe.");
+        }
+
+        // 4) Retourner l’objet user
+        return {
+          id: user.id,
+          email: user.email!,
+          name: `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || user.email!,
+          role: user.role as Role,
+          storeCode: user.storeCode,
+          storeName: user.storeName,
+        } as any;
       },
     }),
 
@@ -119,105 +158,105 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   pages: { signIn: "/invite" },
 
-callbacks: {
-// Dans callbacks.signIn
-async signIn({ user, account }) {
-  const provider = account?.provider;
-  if (!provider) return false;
+  callbacks: {
+    async signIn({ user, account }) {
+      const provider = account?.provider;
+      if (!provider) return false;
 
-  if (provider === "google" || provider === "azure-ad") {
-    const email = (user?.email || "").toLowerCase().trim();
-    if (!email) return false;
+      if (provider === "google" || provider === "azure-ad") {
+        const email = (user?.email || "").toLowerCase().trim();
+        if (!email) return false;
 
-    // Vérifie si un utilisateur existe déjà
-    const existing = await prisma.user.findUnique({ where: { email } });
+        const existing = await prisma.user.findUnique({ where: { email } });
+        if (!existing) {
+          console.warn("🔒 Connexion refusée — email non invité :", email);
+          return false;
+        }
 
-    if (!existing) {
-      console.warn("🔒 Connexion refusée — email non invité :", email);
+        // Lien Account (évite les doubles)
+        await prisma.account.upsert({
+          where: {
+            provider_providerAccountId: {
+              provider,
+              providerAccountId: account?.providerAccountId!,
+            },
+          },
+          update: {},
+          create: {
+            userId: existing.id,
+            provider,
+            providerAccountId: account?.providerAccountId!,
+            type: account?.type!,
+            access_token: (account as any)?.access_token,
+            token_type: (account as any)?.token_type,
+            scope: (account as any)?.scope,
+          },
+        });
+
+        return true;
+      }
+
+      if (provider === "credentials") return true;
       return false;
-    }
+    },
 
-    // ✅ Crée ou met à jour le lien Account automatiquement si inexistant
-    await prisma.account.upsert({
-      where: { provider_providerAccountId: { provider, providerAccountId: account?.providerAccountId! } },
-      update: {},
-      create: {
-        userId: existing.id,
-        provider,
-        providerAccountId: account?.providerAccountId!,
-        type: account?.type!,
-        access_token: account?.access_token,
-        token_type: account?.token_type,
-        scope: account?.scope,
-      },
-    });
+    /** Enrichit le JWT avec role / storeCode / storeName / revoked */
+    async jwt({ token, user }) {
+      try {
+        // Si on a l'user (nouvelle connexion), utiliser son id/email
+        const selector =
+          user?.id
+            ? { id: user.id as string }
+            : token?.email
+            ? { email: token.email as string }
+            : null;
 
-    return true;
-  }
+        if (selector) {
+          const db = await prisma.user.findFirst({
+            where: selector as any,
+            select: {
+              role: true,
+              storeCode: true,
+              storeName: true,
+              revoked: true,
+              email: true,
+            },
+          });
 
-  if (provider === "credentials") return true;
-
-  return false;
-},
-
-
-  /** Enrichit le JWT avec role / storeCode / storeName / revoked */
-  async jwt({ token, user }) {
-    try {
-      let db = null;
-
-      if (user?.id) {
-        db = await prisma.user.findUnique({
-          where: { id: user.id },
-          select: { role: true, storeCode: true, storeName: true, email: true },
-        });
-      } else if (token?.email) {
-        db = await prisma.user.findUnique({
-          where: { email: token.email as string },
-          select: { role: true, storeCode: true, storeName: true, email: true },
-        });
+          if (db) {
+            (token as any).role = db.role ?? (token as any).role ?? "Employé";
+            (token as any).storeCode = db.storeCode ?? null;
+            (token as any).storeName = db.storeName ?? null;
+            (token as any).revoked = !!db.revoked;
+          }
+        }
+      } catch (err) {
+        console.warn("JWT enrich error", err);
       }
+      return token;
+    },
 
-      if (db) {
-        (token as any).role = db.role ?? (token as any).role ?? "Employé";
-        (token as any).storeCode = db.storeCode ?? null;
-        (token as any).storeName = db.storeName ?? null;
+    /** Répercute les infos JWT dans la session */
+    async session({ session, token }) {
+      const role = (token as any).role ?? "Employé";
+      const storeCode = (token as any).storeCode ?? null;
+      const storeName = (token as any).storeName ?? null;
+      const revoked = (token as any).revoked ?? false;
 
-        // Vérifie si l’utilisateur est révoqué
-        const revokedRow = await prisma.revokedInvite.findUnique({
-  where: { id: db.email ?? undefined },
-});
+      (session as any).role = role;
+      (session as any).storeCode = storeCode;
+      (session as any).storeName = storeName;
+      (session as any).revoked = revoked;
 
-        (token as any).revoked = !!revokedRow; 
-      }
-    } catch (err) {
-      console.warn("JWT enrich error", err);
-    }
-    return token;
+      if (!session.user) session.user = {} as any;
+      (session.user as any).role = role;
+      (session.user as any).storeCode = storeCode;
+      (session.user as any).storeName = storeName;
+      (session.user as any).revoked = revoked;
+
+      return session;
+    },
   },
-
-  /** Répercute les infos JWT dans la session */
-  async session({ session, token }) {
-    const role = (token as any).role ?? "Employé";
-    const storeCode = (token as any).storeCode ?? null;
-    const storeName = (token as any).storeName ?? null;
-    const revoked = (token as any).revoked ?? false;
-
-    (session as any).role = role;
-    (session as any).storeCode = storeCode;
-    (session as any).storeName = storeName;
-    (session as any).revoked = revoked;
-
-    if (!session.user) session.user = {} as any;
-    (session.user as any).role = role;
-    (session.user as any).storeCode = storeCode;
-    (session.user as any).storeName = storeName;
-    (session.user as any).revoked = revoked;
-
-    return session;
-  },
-},
-
 
   logger: {
     error(code, metadata) {
