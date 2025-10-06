@@ -11,10 +11,15 @@ const EMAIL_FROM = process.env.EMAIL_FROM || "Académie <no-reply@example.com>";
 
 export async function POST(req: Request) {
   try {
+    console.log("🟡 /api/invites/send — Début du POST");
+
     const session = await getServerSession(authOptions);
     const sender = session?.user?.email || EMAIL_FROM;
+    console.log("Session détectée:", sender);
 
     const body = await req.json();
+    console.log("Body reçu:", body);
+
     const {
       to,
       firstName = "",
@@ -23,15 +28,16 @@ export async function POST(req: Request) {
       storeCode = "",
       storeName = "",
       hireDate,
-      jti,          // <-- standardisé
+      jti,
       ttlHours = 24,
     } = body || {};
 
     if (!to || typeof to !== "string") {
+      console.error("❌ Champ 'to' manquant ou invalide");
       return NextResponse.json({ ok: false, error: "Email requis." }, { status: 400 });
     }
 
-    // Génère le token avec jti imposé si renvoi
+    console.log("🟢 Étape 1: génération du token...");
     const token = await signInvite({
       email: to,
       role,
@@ -40,19 +46,22 @@ export async function POST(req: Request) {
       ttlHours,
       jti,
     });
+    console.log("✅ Token généré avec succès.");
 
     const signupUrl = `${APP_URL}/signup?token=${encodeURIComponent(token)}`;
+    console.log("URL d'inscription:", signupUrl);
 
-    // Envoie l'email
+    console.log("🟢 Étape 2: configuration du transport SMTP...");
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT || 587),
-      secure: true,
+      secure: false, // STARTTLS (obligatoire pour Gmail)
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
     });
+    console.log("✅ Transporter SMTP prêt.");
 
     const html = `
       <div style="font-family:system-ui,Segoe UI,Arial,sans-serif;font-size:16px;line-height:1.5">
@@ -65,6 +74,7 @@ export async function POST(req: Request) {
       </div>
     `;
 
+    console.log("🟢 Étape 3: envoi du courriel...");
     await transporter.sendMail({
       from: EMAIL_FROM,
       to,
@@ -72,9 +82,10 @@ export async function POST(req: Request) {
       html,
       text: `Invitation Académie Shop Santé\n\nLien: ${signupUrl}\nValide ${ttlHours}h\n`,
     });
+    console.log("✅ Email envoyé à:", to);
 
+    console.log("🟢 Étape 4: enregistrement InviteLog...");
     if (jti) {
-      // Mise à jour si renvoi
       await prisma.inviteLog.update({
         where: { jti },
         data: {
@@ -86,8 +97,8 @@ export async function POST(req: Request) {
           hireDate: hireDate ? new Date(hireDate) : null,
         },
       });
+      console.log("InviteLog mis à jour (renvoi).");
     } else {
-      // Création
       const payload = JSON.parse(atob(token.split(".")[1]));
       await prisma.inviteLog.create({
         data: {
@@ -103,11 +114,13 @@ export async function POST(req: Request) {
           invitedAt: new Date(),
         },
       });
+      console.log("InviteLog créé avec succès.");
     }
 
+    console.log("✅ /api/invites/send — Terminé avec succès !");
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error("invites/send error", e);
+    console.error("❌ invites/send error:", e);
     return NextResponse.json({ ok: false, error: "Erreur serveur." }, { status: 500 });
   }
 }
