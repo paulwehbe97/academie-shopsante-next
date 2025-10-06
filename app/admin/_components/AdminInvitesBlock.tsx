@@ -61,8 +61,14 @@ export default function AdminInvitesBlock() {
 
   async function handleSend() {
     console.log("handleSend triggered", form);
-    if (!form.email || !form.firstName || !form.lastName || !form.storeCode) {
-      toast.error("Tous les champs sont requis");
+
+    // ✅ Vérifie les champs essentiels selon le rôle
+    if (!form.email || !form.firstName || !form.lastName) {
+      toast.error("Prénom, nom et courriel sont requis");
+      return;
+    }
+    if (form.role !== "Admin" && !form.storeCode) {
+      toast.error("Veuillez choisir une boutique pour ce rôle");
       return;
     }
 
@@ -96,7 +102,14 @@ export default function AdminInvitesBlock() {
 
       if (res.ok) {
         toast.success("Invitation envoyée !");
-        setForm({ firstName: "", lastName: "", email: "", role: "Employé", storeCode: "", hireDate: "" });
+        setForm({
+          firstName: "",
+          lastName: "",
+          email: "",
+          role: "Employé",
+          storeCode: "",
+          hireDate: "",
+        });
         loadInvites();
       } else {
         toast.error("Erreur lors de l’envoi");
@@ -164,6 +177,14 @@ export default function AdminInvitesBlock() {
     ? invites.filter((i) => i.storeCode === filterStore)
     : invites;
 
+  // ✅ Bouton activé seulement si les champs requis selon le rôle sont remplis
+  const canSend =
+    form.firstName &&
+    form.lastName &&
+    form.email &&
+    (form.role === "Admin" || form.storeCode) &&
+    !sending;
+
   return (
     <div className="bg-white rounded-2xl shadow p-6 space-y-6">
       <h2 className="text-lg font-bold mb-4">Inviter un nouvel utilisateur</h2>
@@ -200,6 +221,7 @@ export default function AdminInvitesBlock() {
           className="border rounded-lg px-3 py-2"
           value={form.storeCode}
           onChange={(e) => setForm({ ...form, storeCode: e.target.value })}
+          disabled={form.role === "Admin"} // ✅ désactivé si Admin
         >
           <option value="">Choisir une boutique</option>
           {stores.map((s) => (
@@ -218,7 +240,7 @@ export default function AdminInvitesBlock() {
 
       <button
         onClick={handleSend}
-        disabled={sending}
+        disabled={!canSend}
         className="px-4 py-2 rounded-lg text-white disabled:opacity-50
                    bg-gradient-to-r from-brand-yellow via-brand-lime to-brand-teal
                    hover:opacity-90 transition"
