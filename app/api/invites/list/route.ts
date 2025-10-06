@@ -4,8 +4,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import prisma from "@/lib/db"; // ✅ bon import unique
 
 function statusOf(row: any) {
   if (row.acceptedAt) return "accepted";
@@ -14,21 +13,18 @@ function statusOf(row: any) {
 }
 
 function isExpired(invitedAt: Date) {
-  const expires = new Date(invitedAt.getTime() + 24 * 60 * 60 * 1000); // 24h
+  const expires = new Date(invitedAt.getTime() + 24 * 60 * 60 * 1000);
   return Date.now() > expires.getTime();
 }
 
 export async function GET(req: Request) {
   try {
-    // Essaye d'obtenir la session (retourne null si non connecté)
     const session = await getServerSession(authOptions);
     const me = session?.user as any;
 
-    // 🔹 TEMPORAIRE : autoriser l'accès même sans session pour tester sur Vercel
     const role: "Employé" | "Gérant" | "Admin" = (me?.role || "Admin") as any;
     const myStore: string | null = me?.storeCode || null;
 
-    // 🔸 Filtre selon le rôle
     const where =
       role === "Admin"
         ? {}
@@ -36,13 +32,11 @@ export async function GET(req: Request) {
         ? { storeCode: myStore }
         : { id: { in: [] as string[] } };
 
-    // 🔹 Lecture des invitations
     const rows = await prisma.inviteLog.findMany({
       where,
       orderBy: { invitedAt: "desc" },
     });
 
-    // 🔹 Transformation des données
     const invites = rows.map((r: any) => ({
       id: r.jti,
       firstName: r.firstName || "",
