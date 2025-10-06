@@ -1,4 +1,7 @@
 // app/api/admin/employees/list/route.ts
+export const dynamic = "force-dynamic";
+
+
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
