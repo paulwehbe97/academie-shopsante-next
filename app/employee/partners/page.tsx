@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import ReturnPill from "@/components/ReturnPill";
+
 
 type Partner = {
   id: number;
@@ -34,14 +36,10 @@ export default function EmployeePartnersPage() {
     <div className="min-h-screen bg-gradient-to-br from-brand-yellow via-brand-lime to-brand-teal/70 py-10 px-4">
       <div className="mx-auto max-w-4xl">
         {/* Bouton retour */}
-        <div className="mb-6">
-          <Link
-            href="/employee"
-            className="inline-flex items-center text-sm font-medium text-neutral-700 hover:text-neutral-900"
-          >
-            ◀ Retour
-          </Link>
-        </div>
+<header className="mb-6 flex items-center justify-between">
+  <h1 className="text-2xl font-bold text-neutral-900">Nos partenaires</h1>
+  <ReturnPill href="/employee" label="Retour" />
+</header>
 
         {/* Contenu principal */}
         <div className="rounded-2xl bg-white p-6 shadow-sm">

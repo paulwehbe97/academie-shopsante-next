@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ReturnPill from "@/components/ReturnPill";
+
 
 type CertRow = {
   id: string;
@@ -162,13 +164,20 @@ export default function CertificatesPage() {
 
   if (!hydrated) return <div className="min-h-[200px]" />;
 
-  return (
-    <main className="mx-auto max-w-3xl px-6 py-8">
-      <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Mes certificats</h1>
-      <p className="mt-2 text-sm text-neutral-600">
-        Tes certificats s’affichent ici dès qu’un chapitre est réussi (≥ 90&nbsp;% sur tous ses sujets).
-      </p>
-      <div className="mt-6">{content}</div>
-    </main>
-  );
+return (
+  <main className="mx-auto max-w-3xl px-6 py-8">
+    <header className="mb-6 flex items-center justify-between">
+      <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
+        Mes certificats
+      </h1>
+      <ReturnPill href="/employee" label="Retour" />
+    </header>
+
+    <p className="mt-2 text-sm text-neutral-600">
+      Tes certificats s’affichent ici dès qu’un chapitre est réussi (≥ 90&nbsp;% sur tous ses sujets).
+    </p>
+
+    <div className="mt-6">{content}</div>
+  </main>
+);
 }
