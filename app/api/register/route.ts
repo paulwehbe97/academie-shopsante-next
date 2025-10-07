@@ -65,13 +65,42 @@ export async function POST(req: Request) {
     const storeCode = (decoded.storeCode ?? existing?.storeCode) ?? null;
     const storeName = (decoded.storeName ?? existing?.storeName) ?? null;
 
-    const user = await prisma.user.upsert({
-      where: { email },
-      update: { passwordHash, role, storeCode, storeName },
-      create: { email, passwordHash, role: role as any, storeCode, storeName },
-      // ⬇️ Retrait de `createdAt` qui n’existe pas dans ton modèle User
-      select: { id: true, email: true, role: true, storeCode: true, storeName: true },
-    });
+// 🔍 5b) Récupère prénom/nom depuis InviteLog si existants
+const inviteInfo = await prisma.inviteLog.findUnique({ where: { jti } });
+const firstName = inviteInfo?.firstName || "";
+const lastName = inviteInfo?.lastName || "";
+
+// 🔐 5c) Création / mise à jour du user avec ces infos
+const user = await prisma.user.upsert({
+  where: { email },
+  update: {
+    passwordHash,
+    role,
+    storeCode,
+    storeName,
+    firstName,
+    lastName,
+  },
+  create: {
+    email,
+    passwordHash,
+    role: role as any,
+    storeCode,
+    storeName,
+    firstName,
+    lastName,
+  },
+  select: {
+    id: true,
+    email: true,
+    role: true,
+    storeCode: true,
+    storeName: true,
+    firstName: true,
+    lastName: true,
+  },
+});
+
 
     // 6) Marquer l’invite comme consommée (idempotent) + InviteLog.acceptedAt
     await consumeInvite(jti);
