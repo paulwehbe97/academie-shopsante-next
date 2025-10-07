@@ -1,11 +1,10 @@
 // app/api/admin/stores/list/route.ts
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import prisma from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { STORES } from "@/data/stores"; // ✅ ton fichier local déjà présent
+import prisma from "@/lib/db";
 
 export async function GET() {
   try {
@@ -16,13 +15,13 @@ export async function GET() {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
     }
 
-    // ✅ on renvoie simplement la liste statique des boutiques
-    return NextResponse.json({ ok: true, stores: STORES });
-  } catch (e: any) {
+    const stores = await prisma.store.findMany({
+      orderBy: { name: "asc" },
+    });
+
+    return NextResponse.json({ ok: true, stores });
+  } catch (e) {
     console.error("Error fetching stores:", e);
-    return NextResponse.json(
-      { ok: false, error: "Erreur serveur" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: "Erreur serveur" }, { status: 500 });
   }
 }
