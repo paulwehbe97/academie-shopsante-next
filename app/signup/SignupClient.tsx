@@ -81,6 +81,8 @@ export default function SignupPage() {
   }
 
   // SSO: pre-provision via GET ?token=… then launch provider
+ // ...
+  // SSO: pre-provision via GET ?token=… then launch provider
   async function handleSso(provider: 'google' | 'azure-ad') {
     setError(null); setOk(null);
     if (!token) { setError("Lien invalide. Reprends l’invitation."); return; }
@@ -102,12 +104,14 @@ export default function SignupPage() {
       }
 
       setOk("Invitation validée. Redirection vers le fournisseur SSO…");
-      await signIn(provider, { callbackUrl: '/' });
+      // ✅ transmet le token pour que NextAuth puisse garder le contexte
+      await signIn(provider, { callbackUrl: `/`, token });
     } catch {
       setError("Erreur réseau. Réessaie.");
       setPending(false);
     }
   }
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-yellow via-brand-lime to-brand-teal/70">
