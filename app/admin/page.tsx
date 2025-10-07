@@ -57,7 +57,27 @@ export default function AdminPage() {
           </div>
         </section>
 
-        {/* 5. Boutiques */}
+{/* 5. Partenaires */}
+<section>
+  <div className="bg-white rounded-2xl shadow p-6 flex flex-col sm:flex-row items-center justify-between">
+    <div>
+      <h2 className="text-lg font-semibold">Partenaires — Mise à jour</h2>
+      <p className="text-sm text-gray-600">
+        Ajouter, modifier ou supprimer les entreprises partenaires visibles dans la section employé « Nos partenaires ».
+      </p>
+    </div>
+    <Link
+      href="/admin/partners"
+      className="mt-4 sm:mt-0 px-4 py-2 rounded-lg text-white text-sm
+     bg-gradient-to-r from-brand-yellow via-brand-lime to-brand-teal
+     hover:opacity-90 transition"
+    >
+      Accéder à la gestion
+    </Link>
+  </div>
+</section>
+
+        {/* 6. Boutiques */}
         <section>
           <AdminStoresBlock />
         </section>
