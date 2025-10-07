@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import PoliciesAdminClient from "./PoliciesAdminClient";
+import Link from "next/link";
+
 
 export default async function AdminPoliciesPage() {
   const session = await getServerSession(authOptions);
@@ -14,6 +16,17 @@ export default async function AdminPoliciesPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-yellow via-brand-lime to-brand-teal">
       <main className="mx-auto max-w-6xl px-4 py-8 space-y-8">
+
+        {/* Bouton retour */}
+<div className="mb-6 max-w-5xl mx-auto">
+  <Link
+    href="/admin"
+    className="inline-flex items-center text-sm font-medium text-neutral-700 hover:text-neutral-900"
+  >
+    ◀ Retour à l’administration
+  </Link>
+</div>
+
         {/* Bloc Politiques & Contrats */}
         <section className="bg-white rounded-2xl shadow p-6">
           <header className="mb-4">

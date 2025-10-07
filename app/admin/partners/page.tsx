@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { toast } from "sonner";
+import Link from "next/link";
+
 
 type Partner = {
   id: number;
@@ -99,6 +101,16 @@ export default function AdminPartnersPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-brand-yellow via-brand-lime to-brand-teal/70 py-10 px-4">
       <div className="mx-auto max-w-5xl rounded-2xl bg-white p-6 shadow-sm">
+{/* Bouton retour */}
+<div className="mb-6 max-w-5xl mx-auto">
+  <Link
+    href="/admin"
+    className="inline-flex items-center text-sm font-medium text-neutral-700 hover:text-neutral-900"
+  >
+    ◀ Retour à l’administration
+  </Link>
+</div>
+
         {/* Titre principal */}
         <h1 className="text-2xl font-bold mb-2">Partenaires — Mise à jour</h1>
         <p className="text-sm text-neutral-600 mb-6">
