@@ -173,9 +173,13 @@ export default function AdminInvitesBlock() {
     return <span className="px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">En attente</span>;
   }
 
-  const filteredInvites = filterStore
-    ? invites.filter((i) => i.storeCode === filterStore)
-    : invites;
+// ✅ Masquer les invitations déjà acceptées (succès)
+const visibleInvites = invites.filter((i) => i.status !== "accepted");
+
+const filteredInvites = filterStore
+  ? visibleInvites.filter((i) => i.storeCode === filterStore)
+  : visibleInvites;
+
 
   // ✅ Bouton activé seulement si les champs requis selon le rôle sont remplis
   const canSend =
@@ -300,12 +304,15 @@ export default function AdminInvitesBlock() {
                   <td className="px-3 py-2 border">
                     <div className="flex gap-2 justify-center">
                       <button
-                        onClick={() => handleResend(inv)}
-                        disabled={inv.status === "accepted"}
-                        className="px-2 py-1 rounded-lg bg-yellow-500 text-white text-xs disabled:opacity-50"
-                      >
-                        Renvoyer
-                      </button>
+  onClick={() => handleResend(inv)}
+  disabled={inv.status === "accepted"}
+  className="px-2 py-1 rounded-lg text-white text-xs disabled:opacity-50
+             bg-gradient-to-r from-brand-yellow via-brand-lime to-brand-teal
+             hover:opacity-90 transition"
+>
+  Renvoyer
+</button>
+
                       <button
                         onClick={() => handleRevoke(inv)}
                         disabled={inv.status !== "pending"}
