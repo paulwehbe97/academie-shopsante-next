@@ -1,11 +1,9 @@
-// app/api/certificates/issue/route.ts
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import prisma from "@/lib/db";
-import fs from "fs";
-import path from "path";
 import nodemailer from "nodemailer";
 import { generateCertificate } from "@/lib/certificates";
+import { createClient } from "@supabase/supabase-js";
 
 const SMTP = {
   host: process.env.SMTP_HOST || "",
@@ -45,7 +43,7 @@ export async function POST(req: Request) {
     create: {
       email: userEmail,
       name: userName || null,
-      role: "Employé", // défaut ; ajustable si besoin
+      role: "Employé",
       storeCode: storeCode || null,
       storeName: storeName || null,
     },
@@ -59,7 +57,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    // 🔁 Idempotence (sans dépendre d'un composite unique côté client)
+    // 🔁 Idempotence
     const existing = await prisma.certificate.findFirst({
       where: { userId, levelKey, chapterId },
     });
@@ -82,18 +80,37 @@ export async function POST(req: Request) {
       chapterTitle,
       store,
       issuedDate,
-      certificateId: certId, signerName: "Paul Wehbe",
+      certificateId: certId,
+      signerName: "Paul Wehbe",
       signerTitle: "Propriétaire franchisé",
     });
 
-    // 💾 Écriture fichier /public/certs/{userId}/...
-    const baseDir = path.join(process.cwd(), "public", "certs", userId);
-    fs.mkdirSync(baseDir, { recursive: true });
+    // 💾 Upload du certificat dans Supabase Storage
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     const fileNameSafe = `Certificat_${levelKey.replace(/\s+/g, "_")}_Chapitre_${chapterId}_${safeName(userName) || userEmail}_${issuedDate}.pdf`;
-    const filePath = path.join(baseDir, fileNameSafe);
-    fs.writeFileSync(filePath, Buffer.from(pdfBytes));
-    const webPath = `/certs/${encodeURIComponent(userId)}/${encodeURIComponent(fileNameSafe)}`;
+    const storagePath = `${userId}/${fileNameSafe}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("certs")
+      .upload(storagePath, Buffer.from(pdfBytes), {
+        contentType: "application/pdf",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error("[certificates/issue] upload error:", uploadError);
+      throw new Error("Supabase upload failed");
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from("certs")
+      .getPublicUrl(storagePath);
+
+    const webPath = publicUrlData.publicUrl || "";
 
     // 🗃️ Enregistrement en DB
     let row;
@@ -143,7 +160,6 @@ Veuillez trouver ci-joint votre certificat de réussite pour le chapitre "${chap
       await prisma.certificate.update({ where: { id: row.id }, data: { sentAt: new Date() } });
     } catch (e) {
       console.error("[certificates/issue] email send error:", e);
-      // on n'échoue pas l'API si l'email rate
     }
 
     return NextResponse.json({ ok: true, certificate: row });
