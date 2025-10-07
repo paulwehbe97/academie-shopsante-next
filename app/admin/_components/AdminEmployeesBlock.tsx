@@ -243,13 +243,18 @@ export default function AdminEmployeesBlock() {
               key={emp.id}
               className="bg-white border rounded-2xl p-4 shadow-sm flex flex-col"
             >
-              <div className="font-medium text-gray-900">
-                {emp.firstName} {emp.lastName}
-              </div>
-              <div className="text-sm text-gray-600">
-                {emp.storeName || emp.storeCode} — Dernière activité :{" "}
-                {emp.lastActive ? daysSince(emp.lastActive) + " j" : "—"}
-              </div>
+{/* Informations employé */}
+<div className="space-y-0.5 mb-1">
+  <div className="font-semibold text-gray-900">
+    {emp.firstName} {emp.lastName}
+  </div>
+  <div className="text-sm text-gray-700">{emp.email}</div>
+  <div className="text-sm text-gray-600">
+    {emp.storeName || emp.storeCode} — Dernière activité :{" "}
+    {emp.lastActive ? `${daysSince(emp.lastActive)} j` : "—"}
+  </div>
+</div>
+
 
               {/* Progression */}
               <div className="mt-3">
