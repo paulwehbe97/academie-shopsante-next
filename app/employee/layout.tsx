@@ -58,13 +58,6 @@ export default async function EmployeeLayout({ children }: { children: ReactNode
   >
     Mes certificats
   </Link>
-  {/* Déconnexion: pastille grise (exigé) */}
-  <a
-    href="/api/auth/signout"
-    className="rounded-2xl bg-neutral-200 px-3 py-1.5 text-sm font-semibold text-neutral-900 shadow-sm hover:bg-neutral-300"
-  >
-    Déconnexion
-  </a>
 </nav>
 
         </div>
