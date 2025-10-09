@@ -16,23 +16,30 @@ export async function GET(req: Request, { params }: { params: { file: string } }
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // Télécharger le fichier depuis Supabase Storage
     const { data, error } = await supabase.storage.from("policies").download(fileKey);
     if (error || !data) {
       console.error("Download error:", error);
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
 
+    // Conversion en buffer binaire
     const arrayBuffer = await data.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const safeName = fname.toLowerCase().endsWith(".pdf") ? fname : `${fname}.pdf`;
+    // Forcer un nom propre et extension .pdf
+    const baseName = fname.toLowerCase().endsWith(".pdf") ? fname : `${fname}.pdf`;
 
     return new NextResponse(buffer, {
       status: 200,
       headers: {
+        // Type MIME explicite
         "Content-Type": "application/pdf",
-        "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${safeName}"`,
-        "Content-Length": buffer.length.toString(),
+        // Nom forcé pour que le navigateur crée bien un .pdf
+        "Content-Disposition": `attachment; filename="${encodeURIComponent(baseName)}"; filename*=UTF-8''${encodeURIComponent(baseName)}`,
+        // Autres en-têtes pour compatibilité
+        "Content-Transfer-Encoding": "binary",
+        "Accept-Ranges": "bytes",
         "Cache-Control": "no-cache, no-store, must-revalidate",
       },
     });
