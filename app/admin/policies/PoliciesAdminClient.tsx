@@ -108,9 +108,17 @@ export default function PoliciesAdminClient() {
   }, []);
 
   React.useEffect(() => {
+  load();
+  loadTotal();
+
+  // ✅ Rafraîchissement auto toutes les 30 secondes
+  const interval = setInterval(() => {
     load();
-    loadTotal();
-  }, [load, loadTotal]);
+  }, 30000);
+
+  return () => clearInterval(interval);
+}, [load, loadTotal]);
+
 
   async function onDelete(id: string) {
     if (!confirm("Supprimer ce document ?")) return;
