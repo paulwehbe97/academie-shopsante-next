@@ -14,14 +14,29 @@ function isAdmin(session: any) {
 // GET /api/policies → liste
 export async function GET() {
   try {
+    // ✅ Ajout de la jointure avec _count
     const docs = await prisma.policyDoc.findMany({
       orderBy: { createdAt: "desc" },
+      include: {
+        _count: {
+          select: { acceptances: true },
+        },
+      },
     });
 
-    return NextResponse.json({ ok: true, items: docs });
+    // ✅ Renvoi d’un champ acceptCount
+    const items = docs.map((d) => ({
+      ...d,
+      acceptCount: d._count.acceptances,
+    }));
+
+    return NextResponse.json({ ok: true, items });
   } catch (err) {
     console.error("GET /api/policies error", err);
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "server_error" },
+      { status: 500 }
+    );
   }
 }
 
@@ -45,10 +60,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Sauvegarde du fichier via lib/policyStorage
     const { fileKey, fileUrl } = await savePolicyPdf(file, "policies");
-    
-    // Insertion en DB
+
     const created = await prisma.policyDoc.create({
       data: {
         title,
@@ -61,6 +74,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, doc: created });
   } catch (err) {
     console.error("POST /api/policies error", err);
-    return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "server_error" },
+      { status: 500 }
+    );
   }
 }
