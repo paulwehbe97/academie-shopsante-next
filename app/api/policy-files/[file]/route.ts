@@ -22,19 +22,18 @@ export async function GET(req: Request, { params }: { params: { file: string } }
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
 
-    // Convertir proprement en Uint8Array pour éviter les encodages corrompus
     const arrayBuffer = await data.arrayBuffer();
-    const uint8 = new Uint8Array(arrayBuffer);
+    const buffer = Buffer.from(arrayBuffer);
 
-    // Si le nom n’a pas déjà .pdf, l’ajouter
-    const safeName = fname.endsWith(".pdf") ? fname : `${fname}.pdf`;
+    const safeName = fname.toLowerCase().endsWith(".pdf") ? fname : `${fname}.pdf`;
 
-    return new NextResponse(uint8, {
+    return new NextResponse(buffer, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${safeName}"`,
-        "Cache-Control": "private, max-age=0, must-revalidate",
+        "Content-Length": buffer.length.toString(),
+        "Cache-Control": "no-cache, no-store, must-revalidate",
       },
     });
   } catch (err) {
