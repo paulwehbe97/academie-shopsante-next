@@ -7,7 +7,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request, { params }: { params: { file: string } }) {
   try {
     const fname = decodeURIComponent(params.file);
-    const fileKey = `policies/${fname}`;
+    const fileKey = fname.startsWith("policies/") ? fname : `policies/${fname}`;
+
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
