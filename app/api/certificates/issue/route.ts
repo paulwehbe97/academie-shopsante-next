@@ -5,6 +5,9 @@ import nodemailer from "nodemailer";
 import { generateCertificate } from "@/lib/certificates";
 import { createClient } from "@supabase/supabase-js";
 
+/* -------------------------------------------------------------------------- */
+/*  🔧 Config SMTP                                                            */
+/* -------------------------------------------------------------------------- */
 const SMTP = {
   host: process.env.SMTP_HOST || "",
   port: Number(process.env.SMTP_PORT || "465"),
@@ -14,16 +17,22 @@ const SMTP = {
 };
 const SMTP_SECURE = SMTP.port === 465;
 
+/* -------------------------------------------------------------------------- */
+/*  🧼 safeName — génère un nom de fichier “URL-safe” pour Supabase           */
+/* -------------------------------------------------------------------------- */
 function safeName(s?: string | null) {
   if (!s) return "";
-  return s.replace(/[^\p{L}\p{N}\s\-_()]/gu, "");
+  return s
+    .normalize("NFD")                      // décompose les accents
+    .replace(/[\u0300-\u036f]/g, "")       // supprime les diacritiques
+    .replace(/[^\w\-().]+/g, "_")          // remplace espaces et caractères spéciaux
+    .replace(/_+/g, "_")                   // compact les underscores
+    .replace(/^_+|_+$/g, "");              // nettoie en début/fin
 }
 
-/** POST /api/certificates/issue
- * body: { levelKey: string, chapterId: string, chapterTitle: string }
- * Auth par JWT (getToken). Résolution de l'utilisateur par email (upsert)
- * pour éviter les erreurs de FK après un reset DB.
- */
+/* -------------------------------------------------------------------------- */
+/*  📩 Route POST /api/certificates/issue                                     */
+/* -------------------------------------------------------------------------- */
 export async function POST(req: Request) {
   // 🔐 Auth via JWT
   const token = await getToken({ req: req as any, secret: process.env.NEXTAUTH_SECRET });
@@ -36,7 +45,7 @@ export async function POST(req: Request) {
   const storeCode = (token as any)?.storeCode as string | null;
   const storeName = (token as any)?.storeName as string | null;
 
-  // 🔎 Résolution/creation utilisateur par email (source stable)
+  // 🔎 Vérifie ou crée l’utilisateur
   const user = await prisma.user.upsert({
     where: { email: userEmail },
     update: {},
@@ -50,7 +59,7 @@ export async function POST(req: Request) {
   });
   const userId = user.id;
 
-  // 🎯 Payload
+  // 🎯 Paramètres
   const { levelKey, chapterId, chapterTitle } = await req.json().catch(() => ({} as any));
   if (!levelKey || !chapterId || !chapterTitle) {
     return NextResponse.json({ ok: false, error: "missing_params" }, { status: 400 });
@@ -65,16 +74,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, certificate: existing, already: true });
     }
 
-    // 📄 Données PDF
+    // 📄 Données du certificat
     const issuedDate = new Date().toISOString().slice(0, 10);
     const store = storeName ? `${storeName}${storeCode ? ` — (${storeCode})` : ""}` : "";
     const certId = `CSS:${(levelKey.match(/\d+/)?.[0] || "N")}-C${chapterId}-${issuedDate.replace(/-/g, "")}-${Math.floor(
       1000 + Math.random() * 9000
     )}`;
 
-    // 🖨️ Génération PDF
+    // 🖨️ Génération du PDF
     const pdfBytes = await generateCertificate({
-      name: safeName(userName) || userEmail,
+      name: userName || userEmail, // affichage inchangé dans le PDF
       levelKey,
       chapterId,
       chapterTitle,
@@ -85,14 +94,14 @@ export async function POST(req: Request) {
       signerTitle: "Propriétaire franchisé",
     });
 
-    // 💾 Upload du certificat dans Supabase Storage
+    // ☁️ Upload vers Supabase Storage
     const supabase = createClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const fileNameSafe = `Certificat_${levelKey.replace(/\s+/g, "_")}_Chapitre_${chapterId}_${safeName(userName) || userEmail}_${issuedDate}.pdf`;
-    const storagePath = `${userId}/${fileNameSafe}`;
+    const fileNameSafe = `Certificat_${safeName(levelKey)}_Chapitre_${safeName(chapterId)}_${safeName(userName) || userEmail}_${issuedDate}.pdf`;
+    const storagePath = `${safeName(userId)}/${fileNameSafe}`;
 
     const { error: uploadError } = await supabase.storage
       .from("certs")
@@ -106,31 +115,22 @@ export async function POST(req: Request) {
       throw new Error("Supabase upload failed");
     }
 
-    const { data: publicUrlData } = supabase.storage
-      .from("certs")
-      .getPublicUrl(storagePath);
-
+    const { data: publicUrlData } = supabase.storage.from("certs").getPublicUrl(storagePath);
     const webPath = publicUrlData.publicUrl || "";
 
     // 🗃️ Enregistrement en DB
-    let row;
-    try {
-      row = await prisma.certificate.create({
-        data: {
-          userId,
-          levelKey,
-          chapterId,
-          chapterTitle,
-          filePath: webPath,
-          issuedAt: new Date(),
-        },
-      });
-    } catch (e) {
-      console.error("[certificates/issue] prisma create error:", e);
-      throw e;
-    }
+    const row = await prisma.certificate.create({
+      data: {
+        userId,
+        levelKey,
+        chapterId,
+        chapterTitle,
+        filePath: webPath,
+        issuedAt: new Date(),
+      },
+    });
 
-    // ✉️ Email (best-effort)
+    // ✉️ Envoi du courriel (best effort)
     try {
       const transport = nodemailer.createTransport({
         host: SMTP.host,
