@@ -29,17 +29,14 @@ export default function PoliciesAdminClient() {
   const [loading, setLoading] = React.useState(true);
   const [uploading, setUploading] = React.useState(false);
 
-  // Total employés
   const [totalEmployees, setTotalEmployees] = React.useState<number | null>(null);
 
-  // Modal signatures
   const [modalOpen, setModalOpen] = React.useState(false);
   const [modalTitle, setModalTitle] = React.useState("");
   const [acceptRows, setAcceptRows] = React.useState<AcceptanceRow[]>([]);
   const [acceptLoading, setAcceptLoading] = React.useState(false);
   const [csvPending, setCsvPending] = React.useState(false);
 
-  // Recherche (modal)
   const [query, setQuery] = React.useState("");
   const filteredRows = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -51,7 +48,6 @@ export default function PoliciesAdminClient() {
     );
   }, [query, acceptRows]);
 
-  // Recherche (liste)
   const [listQuery, setListQuery] = React.useState("");
   const filteredItems = React.useMemo(() => {
     const q = listQuery.trim().toLowerCase();
@@ -63,7 +59,6 @@ export default function PoliciesAdminClient() {
     );
   }, [listQuery, items]);
 
-  // Tri (liste)
   const [sortMode, setSortMode] = React.useState<SortMode>("date_desc");
   const sortedFilteredItems = React.useMemo(() => {
     const arr = [...filteredItems];
@@ -81,7 +76,6 @@ export default function PoliciesAdminClient() {
     return arr;
   }, [filteredItems, sortMode]);
 
-  // Charger documents
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
@@ -99,7 +93,6 @@ export default function PoliciesAdminClient() {
     }
   }, []);
 
-  // Charger total employés
   const loadTotal = React.useCallback(async () => {
     try {
       const res = await fetch("/api/admin/employees/count", { cache: "no-store" });
@@ -119,7 +112,6 @@ export default function PoliciesAdminClient() {
     loadTotal();
   }, [load, loadTotal]);
 
-  // Suppression document
   async function onDelete(id: string) {
     if (!confirm("Supprimer ce document ?")) return;
     try {
@@ -135,7 +127,6 @@ export default function PoliciesAdminClient() {
     }
   }
 
-  // Ouverture signatures
   async function openAcceptances(doc: PolicyItem) {
     setModalOpen(true);
     setModalTitle(doc.title);
@@ -166,7 +157,6 @@ export default function PoliciesAdminClient() {
     }
   }
 
-  // Upload document
   async function onUpload(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -198,9 +188,28 @@ export default function PoliciesAdminClient() {
     }
   }
 
+  // ✅ Nouvelle fonction : téléchargement PDF via Blob
+  async function handleDownload(fileKey: string, title: string) {
+    try {
+      const res = await fetch(`/api/policy-files/${encodeURIComponent(fileKey)}?download=1`);
+      if (!res.ok) throw new Error("Échec du téléchargement");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = title.toLowerCase().endsWith(".pdf") ? title : `${title}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Téléchargement échoué", err);
+      alert("Impossible de télécharger ce PDF.");
+    }
+  }
+
   return (
     <div className="space-y-4">
-      {/* Formulaire ajout */}
       <form onSubmit={onUpload} className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-xl">
         <input
           type="text"
@@ -224,7 +233,6 @@ export default function PoliciesAdminClient() {
         </button>
       </form>
 
-      {/* Carte liste documents */}
       <div className="bg-white rounded-2xl shadow p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Documents — Politiques & Contrats</h2>
@@ -277,9 +285,13 @@ export default function PoliciesAdminClient() {
                   <a href={doc.fileUrl} target="_blank" rel="noreferrer" className="text-sm underline">
                     Ouvrir
                   </a>
-                  <a href={`${doc.fileUrl}?download=1`} className="text-sm underline">
+                  {/* ✅ Bouton modifié */}
+                  <button
+                    onClick={() => handleDownload(doc.fileKey, doc.title)}
+                    className="text-sm underline"
+                  >
                     Télécharger
-                  </a>
+                  </button>
                   <button onClick={() => openAcceptances(doc)} className="text-sm underline">
                     Voir signatures
                   </button>
@@ -293,7 +305,7 @@ export default function PoliciesAdminClient() {
         )}
       </div>
 
-      {/* Modal signatures */}
+      {/* Modal signatures (inchangée) */}
       {modalOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/30" onClick={() => setModalOpen(false)} />
