@@ -4,7 +4,6 @@ import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/policy-files/:file?download=1
 export async function GET(req: Request, { params }: { params: { file: string } }) {
   try {
     const url = new URL(req.url);
@@ -17,21 +16,24 @@ export async function GET(req: Request, { params }: { params: { file: string } }
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // Télécharger le fichier depuis Supabase Storage
     const { data, error } = await supabase.storage.from("policies").download(fileKey);
     if (error || !data) {
       console.error("Download error:", error);
       return NextResponse.json({ ok: false, error: "not_found" }, { status: 404 });
     }
 
-    const buffer = Buffer.from(await data.arrayBuffer());
+    // Convertir proprement en Uint8Array pour éviter les encodages corrompus
+    const arrayBuffer = await data.arrayBuffer();
+    const uint8 = new Uint8Array(arrayBuffer);
 
-    return new NextResponse(buffer, {
+    // Si le nom n’a pas déjà .pdf, l’ajouter
+    const safeName = fname.endsWith(".pdf") ? fname : `${fname}.pdf`;
+
+    return new NextResponse(uint8, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Length": String(buffer.length),
-        "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${fname}"`,
+        "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${safeName}"`,
         "Cache-Control": "private, max-age=0, must-revalidate",
       },
     });
