@@ -16,7 +16,6 @@ export default function EmployeeDocs() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [targetId, setTargetId] = useState<string | null>(null);
   const [fullName, setFullName] = useState("");
@@ -63,12 +62,12 @@ export default function EmployeeDocs() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data?.ok) {
-        setErr("Impossible d’enregistrer la reconnaissance.");
+        setErr("Impossible d’enregistrer la signature.");
       } else {
         setModalOpen(false);
         setTargetId(null);
         setFullName("");
-        await load(); // rafraîchir l’état acceptedAt/By
+        await load();
       }
     } catch {
       setErr("Erreur réseau.");
@@ -77,10 +76,32 @@ export default function EmployeeDocs() {
     }
   }
 
+  // ✅ Nouvelle fonction pour téléchargement PDF correct (même logique que côté admin)
+  async function handleDownload(fileUrl: string, title: string) {
+    try {
+      const res = await fetch(`${fileUrl}?download=1`);
+      if (!res.ok) throw new Error("Échec du téléchargement");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = title.toLowerCase().endsWith(".pdf") ? title : `${title}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Téléchargement échoué", err);
+      alert("Impossible de télécharger ce PDF.");
+    }
+  }
+
   return (
     <section className="rounded-2xl border border-black/10 bg-white/90 p-6 shadow-lg backdrop-blur">
       <h2 className="text-lg font-semibold text-center">Politiques & Contrats</h2>
-      <p className="mt-1 text-sm text-neutral-600 text-center">Clique pour lire; option pour télécharger.</p>
+      <p className="mt-1 text-sm text-neutral-600 text-center">
+        Clique pour lire ou télécharger, puis signe chaque document lu.
+      </p>
 
       {loading ? (
         <p className="mt-5 text-sm text-neutral-600 text-center">Chargement…</p>
@@ -96,33 +117,42 @@ export default function EmployeeDocs() {
                 <div>
                   <div className="font-medium text-neutral-900">{doc.title}</div>
                   <div className="mt-0.5 text-xs text-neutral-500">{doc.category}</div>
-                  {doc.acceptedAt ? (
+
+                  {doc.acceptedAt && (
                     <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                      ✅ Lu le {new Date(doc.acceptedAt).toLocaleDateString()} {doc.acceptedBy ? `par ${doc.acceptedBy}` : ""}
+                      ✅ Signé le {new Date(doc.acceptedAt).toLocaleDateString()}{" "}
+                      {doc.acceptedBy ? `par ${doc.acceptedBy}` : ""}
                     </div>
-                  ) : null}
+                  )}
                 </div>
+
                 <div className="flex items-center gap-2">
                   <a
                     href={doc.fileUrl}
                     target="_blank"
+                    rel="noreferrer"
                     className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-sm font-medium shadow-sm hover:bg-neutral-50"
                   >
                     Ouvrir
                   </a>
-                  <a
-                    href={`${doc.fileUrl}?download=1`}
+                  <button
+                    onClick={() => handleDownload(doc.fileUrl, doc.title)}
                     className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-sm font-medium shadow-sm hover:bg-neutral-50"
                   >
                     Télécharger
-                  </a>
-                  {!doc.acceptedAt && (
+                  </button>
+
+                  {!doc.acceptedAt ? (
                     <button
                       onClick={() => openModal(doc.id)}
                       className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800 hover:bg-amber-100"
                     >
-                      Reconnaître
+                      Signer
                     </button>
+                  ) : (
+                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
+                      Signé
+                    </span>
                   )}
                 </div>
               </div>
@@ -139,9 +169,9 @@ export default function EmployeeDocs() {
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
           <div className="w-full max-w-md rounded-2xl border border-black/10 bg-white p-5 shadow-lg">
-            <h3 className="text-lg font-semibold">Reconnaître la lecture</h3>
+            <h3 className="text-lg font-semibold">Signer le document</h3>
             <p className="mt-1 text-sm text-neutral-600">
-              Entre ton <b>nom complet</b> pour confirmer que tu as lu ce document.
+              Entre ton <b>nom complet</b> pour confirmer que tu as lu et signé ce document.
             </p>
             <input
               autoFocus
@@ -163,7 +193,7 @@ export default function EmployeeDocs() {
                 disabled={pending || fullName.trim().length < 3}
                 className="rounded-full px-3 py-1 text-sm font-semibold text-black shadow-md bg-gradient-to-r from-brand-yellow via-brand-lime to-brand-teal disabled:opacity-60"
               >
-                {pending ? "Enregistrement…" : "Confirmer"}
+                {pending ? "Enregistrement…" : "Signer"}
               </button>
             </div>
           </div>
